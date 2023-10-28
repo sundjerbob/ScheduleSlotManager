@@ -11,120 +11,125 @@ import raf.sk_schedule.util.ScheduleSlotImporterCSV;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 public class ScheduleSlotsManager implements ScheduleManager {
-    private List<ScheduleSlot> timeSlots;
-    private List<RoomProperties> rooms;
+    private Date startingDate;
+    private Date endingDate;
+    private List<ScheduleSlot> mySchedule;
+    private Map<String, RoomProperties> rooms;
+
 
 
     public ScheduleSlotsManager() {
-        timeSlots = new ArrayList<>();
-        rooms = new ArrayList<>();
+        mySchedule = new ArrayList<>();
+        rooms = new HashMap<>();
     }
 
-    @Override
-    public void initialize() {
-        timeSlots = new ArrayList<>();
-        rooms = new ArrayList<>();
-    }
 
     @Override
     public void initialize(Date startingDate, Date endDate) {
-
+        this.startingDate = startingDate;
+        this.endingDate = endDate;
     }
 
-    public void loadRoomsSCV(String csvPath) throws IOException {
-
+    public int loadRoomsSCV(String csvPath) throws IOException {
         rooms = RoomPropertiesImporterCSV.importRoomsCSV(csvPath);
-
+        return rooms.size();
     }
 
-    public void loadScheduleSCV(String csvPath) throws IOException {
-        List<ScheduleSlot> slots = ScheduleSlotImporterCSV.importRoomsCSV(csvPath);
-    }
+    public int loadScheduleSCV(String csvPath) throws IOException {
+        if(rooms.isEmpty())
+            throw new ScheduleException("Your room properties are currently empty. You need to import them first in order to bind the scheduled slots with their location.");
 
-
-    public boolean addRoom(RoomProperties roomProperties) {
-        for (RoomProperties room : rooms) {
-            if (room.getName().equals(roomProperties.getName()))
-                throw new ScheduleException(
-                        "Room with selected name already exists, if u want to change existing room properties please use updateRoom method from the schedule api.");
+        try {
+            mySchedule = ScheduleSlotImporterCSV.importRoomsCSV(csvPath, rooms);
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
         }
-        return rooms.add(roomProperties);
+        return mySchedule.size();
     }
 
-    public boolean updateRoom(String name, RoomProperties newProp) {
+    @Override
+    public List<RoomProperties> getAllRooms() {
+        return new ArrayList<RoomProperties>(rooms.values());
+    }
 
-        RoomProperties updatedRoom = getRoomProperties(name);
+    public void addRoom(RoomProperties roomProperties) {
 
-        if (updatedRoom == null)
+        if (rooms.containsKey(roomProperties.getName()))
+
+            throw new ScheduleException(
+                    "Room with selected name already exists, if u want to change existing room properties please use updateRoom method from the schedule api.");
+
+        rooms.put(roomProperties.getName(), roomProperties);
+    }
+
+    public boolean hasRoom(String roomName) {
+              return rooms.containsKey(roomName);
+    };
+
+    public void updateRoom(String name, RoomProperties newProp) {
+
+
+        if (!rooms.containsKey(name))
             throw new ScheduleException("Room with a name: " + name + "does not exist in schedule.");
 
 
         if (!name.equals(newProp.getName())) {
-            RoomProperties isOccupied = getRoomProperties(newProp.getName());
 
-            if (isOccupied != null)
+            if (rooms.containsKey(newProp.getName()))
                 throw new ScheduleException("You can not change room: " + name + " to " + newProp + " because room with that name already exists.\n" +
-                        "If you really want to make this change you can change the room: " + isOccupied.getName() + " name to something else, than set room:. " + name + " to " + newProp.getName());
-
-            updatedRoom.setName(newProp.getName());
+                        "If you really want to make this change you can change the room: " + newProp.getName() + " name to something else, than set room:. " + name + " to " + newProp.getName());
         }
-        if (newProp.getCapacity() > -1)
-            updatedRoom.setCapacity(newProp.getCapacity());
 
-        updatedRoom.setHasComputers(newProp.hasComputers());
-        updatedRoom.setHasProjector(newProp.hasProjector());
-        updatedRoom.setExtra(newProp.getExtra());
-        return true;
+        rooms.put(name, newProp);
+
 
     }
 
     @Override
-    public boolean deleteRoom(String s) {
-        for (RoomProperties curr : rooms) {
-            if (curr.getName().equals(s))
-                return rooms.remove(curr);
-        }
-        throw new ScheduleException("There is no room with that name in schedule.");
-    }
+    public void deleteRoom(String s) {
 
-    public RoomProperties getRoomProperties(String name) {
-        for (RoomProperties room : rooms) {
-            if (room.getName().equals(name))
-                return room;
-        }
-        return null;
+        if (!rooms.containsKey(s))
+            throw new ScheduleException("There is no room with that name in schedule.");
+
+        rooms.remove(s);
     }
 
     @Override
-    public boolean addTimeSlot(ScheduleSlot timeSlot) throws ParseException, ScheduleException {
+    public RoomProperties getRoom(String name) {
+        return rooms.get(name);
+    }
+
+
+    @Override
+    public boolean scheduleTimeSlot(ScheduleSlot timeSlot) throws ParseException, ScheduleException {
         //check if there is collision with any of the existing slots
-        for (ScheduleSlot curr : timeSlots) {
+
+        for (ScheduleSlot curr : mySchedule) {
             if (curr.isCollidingWith(timeSlot) && curr.getLocation().getName().equals(timeSlot.getLocation().getName()))
-                throw new ScheduleException("The room: " + curr.getLocation().getName() + " is already scheduled between "
-                        + curr.getStartAsString().split(" +")[1] + " and " + curr.getEndAsString().split("\\s")[1] +
-                        " on: " + curr.getStartAsString().split(" +")[0]);
+                throw new ScheduleException(
+                        "The room: "
+                                + curr.getLocation().getName()
+                                + " is already scheduled between "
+                                + curr.getStartAsString().split(" +")[1] +
+                                " and " + curr.getEndAsString().split("\\s")[1] +
+                                " on: " + curr.getStartAsString().split(" +")[0]);
         }
 
-        return timeSlots.add(timeSlot);
+        return mySchedule.add(timeSlot);
     }
 
 
     @Override
     public boolean deleteTimeSlot(ScheduleSlot timeSlot) {
 
-        try {
-            for (ScheduleSlot curr : timeSlots) {
-                if (curr.startTime() == timeSlot.startTime() && curr.endTime() == timeSlot.endTime())
-                    return timeSlots.remove(curr);
 
-            }
-        } catch (ParseException e) {
-            throw new ScheduleException("Date parsing failed, check date and time format.");
+        for (ScheduleSlot curr : mySchedule) {
+            if (curr.getStart().getTime() == timeSlot.getEnd().getTime() &&
+                    curr.getDuration() == timeSlot.getDuration())
+                return mySchedule.remove(curr);
         }
 
         return false;
@@ -132,16 +137,16 @@ public class ScheduleSlotsManager implements ScheduleManager {
 
     @Override
     public void moveTimeSlot(ScheduleSlot oldTimeSlot, ScheduleSlot newTimeSlot) {
-        // Move a time slot
-        if (timeSlots.contains(oldTimeSlot)) {
-            timeSlots.remove(oldTimeSlot);
-            timeSlots.add(newTimeSlot);
+        if (isTimeSlotAvailable(newTimeSlot)) {
+            for (ScheduleSlot curr : mySchedule) {
+
+            }
         }
     }
 
     @Override
     public boolean isTimeSlotAvailable(ScheduleSlot timeSlot) {
-        for (ScheduleSlot curr : timeSlots) {
+        for (ScheduleSlot curr : mySchedule) {
             try {
                 if (curr.isCollidingWith(timeSlot))
                     return false;
@@ -179,7 +184,33 @@ public class ScheduleSlotsManager implements ScheduleManager {
     }
 
     @Override
+    public void exportScheduleCSV(Date date, Date date1) {
+
+    }
+
+    @Override
+    public void exportScheduleJSON(Date date, Date date1) {
+
+    }
+
+    @Override
+    public void exportFilteredScheduleCSV(SearchCriteria searchCriteria, Date date, Date date1) {
+
+    }
+
+    @Override
+    public void exportFilteredScheduleJSON(SearchCriteria searchCriteria, Date date, Date date1) {
+
+    }
+
+
+    @Override
+    public List<ScheduleSlot> getSchedule(Date date, Date date1) {
+        return null;
+    }
+
+    @Override
     public List<ScheduleSlot> getWholeSchedule() {
-        return timeSlots;
+        return mySchedule;
     }
 }
