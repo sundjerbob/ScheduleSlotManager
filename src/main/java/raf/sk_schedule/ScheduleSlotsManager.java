@@ -11,6 +11,7 @@ import raf.sk_schedule.util.ScheduleSlotImporterCSV;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class ScheduleSlotsManager implements ScheduleManager {
@@ -20,7 +21,6 @@ public class ScheduleSlotsManager implements ScheduleManager {
     private Map<String, RoomProperties> rooms;
 
 
-
     public ScheduleSlotsManager() {
         mySchedule = new ArrayList<>();
         rooms = new HashMap<>();
@@ -28,9 +28,15 @@ public class ScheduleSlotsManager implements ScheduleManager {
 
 
     @Override
-    public void initialize(Date startingDate, Date endDate) {
-        this.startingDate = startingDate;
-        this.endingDate = endDate;
+    public void initialize(String startingDate, String endDate) {
+        try {
+            this.startingDate = new SimpleDateFormat(ScheduleSlot.dateFormat).parse(startingDate);
+            this.endingDate = new SimpleDateFormat(ScheduleSlot.dateFormat).parse(startingDate);
+
+        } catch (ParseException e) {
+            throw new ScheduleException(e);
+        }
+
     }
 
     public int loadRoomsSCV(String csvPath) throws IOException {
@@ -39,7 +45,7 @@ public class ScheduleSlotsManager implements ScheduleManager {
     }
 
     public int loadScheduleSCV(String csvPath) throws IOException {
-        if(rooms.isEmpty())
+        if (rooms.isEmpty())
             throw new ScheduleException("Your room properties are currently empty. You need to import them first in order to bind the scheduled slots with their location.");
 
         try {
@@ -52,8 +58,9 @@ public class ScheduleSlotsManager implements ScheduleManager {
 
     @Override
     public List<RoomProperties> getAllRooms() {
-        return new ArrayList<RoomProperties>(rooms.values());
+        return new ArrayList<>(rooms.values());
     }
+
 
     public void addRoom(RoomProperties roomProperties) {
 
@@ -66,8 +73,8 @@ public class ScheduleSlotsManager implements ScheduleManager {
     }
 
     public boolean hasRoom(String roomName) {
-              return rooms.containsKey(roomName);
-    };
+        return rooms.containsKey(roomName);
+    }
 
     public void updateRoom(String name, RoomProperties newProp) {
 
@@ -84,8 +91,6 @@ public class ScheduleSlotsManager implements ScheduleManager {
         }
 
         rooms.put(name, newProp);
-
-
     }
 
     @Override
@@ -113,11 +118,10 @@ public class ScheduleSlotsManager implements ScheduleManager {
                         "The room: "
                                 + curr.getLocation().getName()
                                 + " is already scheduled between "
-                                + curr.getStartAsString().split(" +")[1] +
-                                " and " + curr.getEndAsString().split("\\s")[1] +
-                                " on: " + curr.getStartAsString().split(" +")[0]);
+                                + curr.getStartAsString().split(" +")[1]
+                                + " and " + curr.getEndAsString().split("\\s")[1]
+                                + " on: " + curr.getStartAsString().split(" +")[0]);
         }
-
         return mySchedule.add(timeSlot);
     }
 
@@ -158,7 +162,7 @@ public class ScheduleSlotsManager implements ScheduleManager {
     }
 
     @Override
-    public List<ScheduleSlot> getFreeTimeSlots(Date startDate, Date endDate) {
+    public List<ScheduleSlot> getFreeTimeSlots(String startDate, String endDate) {
         // Implement logic to find free time slots within the specified date range
         List<ScheduleSlot> freeTimeSlots = new ArrayList<>();
         // Add your logic here
@@ -184,12 +188,13 @@ public class ScheduleSlotsManager implements ScheduleManager {
     }
 
     @Override
-    public void exportScheduleCSV(Date date, Date date1) {
+    public void exportScheduleCSV(String firstDate, String lastDate) {
+
 
     }
 
     @Override
-    public void exportScheduleJSON(Date date, Date date1) {
+    public void exportScheduleJSON(String firstDate, String lastDate) {
 
     }
 
