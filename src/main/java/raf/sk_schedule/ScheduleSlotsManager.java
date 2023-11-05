@@ -5,6 +5,7 @@ import raf.sk_schedule.exception.ScheduleException;
 import raf.sk_schedule.filter.SearchCriteria;
 import raf.sk_schedule.model.RoomProperties;
 import raf.sk_schedule.model.ScheduleSlot;
+import raf.sk_schedule.util.exporter.ScheduleExporter;
 import raf.sk_schedule.util.importer.RoomPropertiesImporterCSV;
 import raf.sk_schedule.util.importer.ScheduleSlotImporterCSV;
 
@@ -195,8 +196,8 @@ public class ScheduleSlotsManager implements ScheduleManager {
 
     @Override
     public int exportScheduleJSON(String filePath, String firstDate, String lastDate) {
-        return 1;
 
+        return 2;
     }
 
     @Override
