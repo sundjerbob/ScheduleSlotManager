@@ -1,21 +1,25 @@
 package raf.sk_schedule;
 
-
 import raf.sk_schedule.api.ScheduleManager;
 import raf.sk_schedule.exception.ScheduleException;
 import raf.sk_schedule.filter.SearchCriteria;
 import raf.sk_schedule.model.RoomProperties;
 import raf.sk_schedule.model.ScheduleSlot;
-import raf.sk_schedule.util.RoomPropertiesImporterCSV;
-import raf.sk_schedule.util.ScheduleSlotImporterCSV;
+import raf.sk_schedule.util.importer.RoomPropertiesImporterCSV;
+import raf.sk_schedule.util.importer.ScheduleSlotImporterCSV;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class ScheduleSlotsManager implements ScheduleManager {
+
     private Date startingDate;
+
     private Date endingDate;
     private List<ScheduleSlot> mySchedule;
     private Map<String, RoomProperties> rooms;
@@ -31,10 +35,10 @@ public class ScheduleSlotsManager implements ScheduleManager {
     public void initialize(String startingDate, String endDate) {
         try {
             this.startingDate = new SimpleDateFormat(ScheduleSlot.dateFormat).parse(startingDate);
-            this.endingDate = new SimpleDateFormat(ScheduleSlot.dateFormat).parse(startingDate);
+            this.endingDate = new SimpleDateFormat(ScheduleSlot.dateFormat).parse(endDate);
 
         } catch (ParseException e) {
-            throw new ScheduleException(e);
+            throw new ScheduleException("Start or end date is in wrong format!");
         }
 
     }
@@ -53,6 +57,9 @@ public class ScheduleSlotsManager implements ScheduleManager {
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }
+
+        System.out.println("start " + startingDate.getTime() + "  end: " + endingDate.getTime() + "loaded rows:  " + mySchedule.size());
+        mySchedule.removeIf(slot -> ((slot.getStart().getTime() < startingDate.getTime()) || (slot.getStart().getTime() >= endingDate.getTime())));
         return mySchedule.size();
     }
 
@@ -67,7 +74,7 @@ public class ScheduleSlotsManager implements ScheduleManager {
         if (rooms.containsKey(roomProperties.getName()))
 
             throw new ScheduleException(
-                    "Room with selected name already exists, if u want to change existing room properties please use updateRoom method from the schedule api.");
+                    "Room with selected name already exists, if you want to change existing room properties please use updateRoom method from the schedule api.");
 
         rooms.put(roomProperties.getName(), roomProperties);
     }
@@ -78,10 +85,8 @@ public class ScheduleSlotsManager implements ScheduleManager {
 
     public void updateRoom(String name, RoomProperties newProp) {
 
-
         if (!rooms.containsKey(name))
             throw new ScheduleException("Room with a name: " + name + "does not exist in schedule.");
-
 
         if (!name.equals(newProp.getName())) {
 
@@ -125,6 +130,11 @@ public class ScheduleSlotsManager implements ScheduleManager {
         return mySchedule.add(timeSlot);
     }
 
+    @Override
+    public boolean scheduleRepetitiveTimeSlot(String s, String s1, long l, String s2) {
+        return false;
+    }
+
 
     @Override
     public boolean deleteTimeSlot(ScheduleSlot timeSlot) {
@@ -142,9 +152,7 @@ public class ScheduleSlotsManager implements ScheduleManager {
     @Override
     public void moveTimeSlot(ScheduleSlot oldTimeSlot, ScheduleSlot newTimeSlot) {
         if (isTimeSlotAvailable(newTimeSlot)) {
-            for (ScheduleSlot curr : mySchedule) {
-
-            }
+            List<?> list = mySchedule.stream().filter(curr -> curr.getStart().getTime() < 9).toList();
         }
     }
 
@@ -161,6 +169,7 @@ public class ScheduleSlotsManager implements ScheduleManager {
         return true;
     }
 
+
     @Override
     public List<ScheduleSlot> getFreeTimeSlots(String startDate, String endDate) {
         // Implement logic to find free time slots within the specified date range
@@ -168,6 +177,7 @@ public class ScheduleSlotsManager implements ScheduleManager {
         // Add your logic here
         return freeTimeSlots;
     }
+
 
     @Override
     public List<ScheduleSlot> searchTimeSlots(SearchCriteria criteria) {
@@ -177,45 +187,73 @@ public class ScheduleSlotsManager implements ScheduleManager {
         return matchingTimeSlots;
     }
 
+
     @Override
-    public void loadScheduleFromFile(String filePath) {
-        // Implement logic to load the schedule from a file
+    public int exportScheduleCSV(String filePath, String firstDate, String lastDate) {
+        return 1;
     }
 
     @Override
-    public void saveScheduleToFile(String filePath) {
-        // Implement logic to save the schedule to a file
-    }
-
-    @Override
-    public void exportScheduleCSV(String firstDate, String lastDate) {
-
+    public int exportScheduleJSON(String filePath, String firstDate, String lastDate) {
+        return 1;
 
     }
 
     @Override
-    public void exportScheduleJSON(String firstDate, String lastDate) {
+    public int exportFilteredScheduleCSV(String filePath, SearchCriteria searchCriteria, String date, String date1) {
+        return 1;
+    }
+
+    @Override
+    public int exportFilteredScheduleJSON(String filePath, SearchCriteria searchCriteria, String date, String date1) {
+        return 1;
 
     }
 
     @Override
-    public void exportFilteredScheduleCSV(SearchCriteria searchCriteria, Date date, Date date1) {
-
-    }
-
-    @Override
-    public void exportFilteredScheduleJSON(SearchCriteria searchCriteria, Date date, Date date1) {
-
-    }
-
-
-    @Override
-    public List<ScheduleSlot> getSchedule(Date date, Date date1) {
+    public List<ScheduleSlot> getSchedule(String date, String date1) {
         return null;
     }
 
     @Override
     public List<ScheduleSlot> getWholeSchedule() {
         return mySchedule;
+    }
+
+    private static File createFileIfNotExists(String filePath) {
+        File file = new File(filePath);
+
+        if (!file.exists()) {
+            // Get the file name from the path
+            String fileName = file.getName();
+
+            try {
+                // Create a new file in the same directory with the extracted name
+                File newFile = new File(file.getParent(), fileName);
+
+                if (newFile.createNewFile()) {
+                    System.out.println("File created: " + newFile.getAbsolutePath());
+                    return newFile; // Return the newly created File object
+                } else {
+                    System.err.println("Failed to create the file.");
+                }
+            } catch (IOException e) {
+                System.err.println("An error occurred: " + e.getMessage());
+            }
+        }
+
+        return file; // If the file already exists, return the existing File object
+    }
+
+    private static void writeStringToFile(File file, String content) {
+        try {
+            FileWriter fileWriter = new FileWriter(file, true); // 'true' enables append mode
+            BufferedWriter writer = new BufferedWriter(fileWriter);
+            writer.write(content);
+            writer.newLine(); // Add a newline character after the content
+            writer.close();
+        } catch (IOException e) {
+            System.err.println("An error occurred while writing to the file: " + e.getMessage());
+        }
     }
 }
