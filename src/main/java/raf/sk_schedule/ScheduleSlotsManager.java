@@ -197,7 +197,6 @@ public class ScheduleSlotsManager implements ScheduleManager {
     @Override
     public int exportScheduleJSON(String filePath, String firstDate, String lastDate) {
 
-
         List<ScheduleSlot> schedule = getSchedule(firstDate, lastDate);
         try {
             File file = ScheduleFileWriter.createFileIfNotExists(filePath);
@@ -207,6 +206,7 @@ public class ScheduleSlotsManager implements ScheduleManager {
 
         } catch (ParseException | ScheduleException | ScheduleIOException e) {
             throw new ScheduleException(e);
+
         }
     }
 
@@ -222,14 +222,20 @@ public class ScheduleSlotsManager implements ScheduleManager {
         try {
             Date from = lowerBoundDate == null ? startingDate : new SimpleDateFormat(dateFormat).parse(lowerBoundDate);
             Date until = upperBoundDate == null ? endingDate : new SimpleDateFormat(dateFormat).parse(upperBoundDate);
-            result.removeIf(slot -> slot.getStart().getTime() < from.getTime() || slot.getStart().getTime() >= until.getTime());
+            System.out.println(from + " MUHAMED ALI " + until);
+            result.removeIf(slot -> {
+
+                boolean yesSir = slot.getStart().getTime() < from.getTime() || slot.getStart().getTime() >= until.getTime();
+                System.out.println("YESIRRRRR : " + yesSir);
+                return yesSir;
+            });
             return result;
 
         } catch (ParseException e) {
             throw new ScheduleException(e);
         }
-
     }
+
 
     @Override
     public List<ScheduleSlot> getWholeSchedule() {
