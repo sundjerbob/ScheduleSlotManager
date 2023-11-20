@@ -12,13 +12,14 @@ import raf.sk_schedule.util.exporter.ScheduleExporterJSON;
 import raf.sk_schedule.util.filter.CriteriaFilter;
 import raf.sk_schedule.util.filter.SearchCriteria;
 import raf.sk_schedule.util.importer.ScheduleImporter;
-import raf.sk_schedule.util.persistence.ScheduleFileWriter;
 
 import java.io.File;
 import java.text.ParseException;
 import java.util.*;
 
 import static raf.sk_schedule.util.date_formater.DateTimeFormatter.parseDate;
+import static raf.sk_schedule.util.persistence.ScheduleFileOperationUnit.initializeFile;
+import static raf.sk_schedule.util.persistence.ScheduleFileOperationUnit.writeStringToFile;
 
 public class ScheduleSlotsManager extends ScheduleManagerAdapter {
 
@@ -119,21 +120,27 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
                 .setStartTime(startTime)
                 .setRecurrenceIntervalStart(parseDate(schedulingIntervalStart))
                 .setRecurrenceIntervalEnd(parseDate(schedulingIntervalEnd));
+
         if (endTime != null)
             mapperBuilder.setEndTime(endTime);
+
         else if (duration > 0)
             mapperBuilder.setDuration(duration);
 
         if (weekDay != null)
             mapperBuilder.setWeekDay(weekDay);
+
         if (recurrencePeriod > 0)
             mapperBuilder.setRecurrencePeriod(recurrencePeriod);
+
         return false;
     }
 
     @Override
     public boolean scheduleRepetitiveTimeSlot(RepetitiveScheduleMapper repetitiveScheduleMapper) {
-        return false;
+
+        repetitiveScheduleMapper.mapSchedule();
+        return true;
     }
 
 
@@ -210,12 +217,13 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
         List<ScheduleSlot> schedule = getSchedule(firstDate, lastDate);
 
         /* Export to file... */
-        File file = ScheduleFileWriter.initializeFile(filePath);
+        File file = initializeFile(filePath);
 
         /* ScheduleComponentAPI Util default csv serialization */
         String serializedList = ScheduleExporterCSV.listToCSV(schedule);
 
-        ScheduleFileWriter.writeStringToFile(file, serializedList);
+        /* append param is false since */
+        writeStringToFile(file, serializedList, false);
 
         /* return number of exported rows */
         return schedule.size();
@@ -232,7 +240,7 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
     public int exportScheduleJSON(String filePath, String lowerDateBound, String upperDateBound) {
 
         // configure file
-        File file = ScheduleFileWriter.initializeFile(filePath);
+        File file = initializeFile(filePath);
 
         // extract the data
         List<ScheduleSlot> schedule = getSchedule(
@@ -244,7 +252,7 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
         String serializedList = ScheduleExporterJSON.serializeObject(schedule);
 
         //persist serialize data inside the file
-        ScheduleFileWriter.writeStringToFile(file, serializedList);
+        writeStringToFile(file, serializedList, true);
 
         //return serialized objects count
         return schedule.size();
@@ -255,7 +263,7 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
     public int exportFilteredScheduleJSON(String filePath, SearchCriteria searchCriteria) {
 
         // configure file
-        File file = ScheduleFileWriter.initializeFile(filePath);
+        File file = initializeFile(filePath);
 
         // extract the data
         List<ScheduleSlot> searchResult = searchTimeSlots(searchCriteria);
@@ -264,7 +272,7 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
         String serializedList = ScheduleExporterJSON.serializeObject(searchResult);
 
         //persist serialize data inside the file
-        ScheduleFileWriter.writeStringToFile(file, serializedList);
+        writeStringToFile(file, serializedList, false);
 
         //return serialized objects count with null ptr exception safety
         return searchResult != null ? searchResult.size() : 0;
