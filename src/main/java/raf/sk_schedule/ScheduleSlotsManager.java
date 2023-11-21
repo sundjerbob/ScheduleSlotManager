@@ -33,11 +33,15 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
         rooms = new HashMap<>();
     }
 
+    // TODO: done
+    @Override
     public int loadRoomsSCV(String csvPath) {
         rooms = ScheduleImporter.importRoomsCSV(csvPath);
         return rooms.size();
     }
 
+    // TODO: done
+    @Override
     public int loadScheduleSCV(String csvPath) {
         if (rooms.isEmpty())
             throw new ScheduleException("Your room properties are currently empty. You need to import them first in order to bind the scheduled slots with their location.");
@@ -46,11 +50,13 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
         return mySchedule.size();
     }
 
+    // TODO: done
     @Override
     public List<RoomProperties> getAllRooms() {
         return new ArrayList<>(rooms.values());
     }
 
+    // TODO: done
     public void addRoom(RoomProperties roomProperties) {
 
         if (rooms.containsKey(roomProperties.getName()))
@@ -61,10 +67,14 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
         rooms.put(roomProperties.getName(), roomProperties);
     }
 
+    // TODO: done
+    @Override
     public boolean hasRoom(String roomName) {
         return rooms.containsKey(roomName);
     }
 
+    // TODO: done
+    @Override
     public void updateRoom(String name, RoomProperties newProp) {
 
         if (!rooms.containsKey(name))
@@ -79,6 +89,8 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
         rooms.put(name, newProp);
     }
 
+
+    // TODO: done
     @Override
     public boolean deleteRoom(String roomName) {
 
@@ -89,9 +101,57 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
         return true;
     }
 
+    // TODO: done
     @Override
-    public RoomProperties getRoom(String name) {
+    public RoomProperties getRoomByName(String name) {
+
         return rooms.get(name);
+    }
+
+
+    public List<RoomProperties> roomLookUp(String name, int capacity, int hasComputers, Boolean hasProjector, Map<String, String> attributes) {
+
+        List<RoomProperties> lookUpResult = new ArrayList<>();
+        boolean include;
+
+        // iterate through rooms
+        for (RoomProperties room : rooms.values()) {
+
+            // perform attributes lookup first if attributes are queried
+            if (attributes != null) {
+                include = true;
+                // iterate through queried attributes
+                for (String attribute : attributes.keySet()) {
+
+                    // check if the queried attributes exists inside currently iterated room and does the queried attributes values match
+                    if (room.hasAttribute(attribute) && !room.getAttribute(attribute).equals(attributes.get(attribute))) {
+                        include = false;
+                        break;
+                    }
+                }
+
+                // based on attributes names and values lookup we determine weather the room should be included in lookUp result, if not  jump to next room
+                if (!include)
+                    continue;
+
+            }
+
+            if ((name != null && !room.getName().equals(name))
+                    ||
+                    (capacity >= 0 && room.getCapacity() != capacity)
+                    ||
+                    (hasComputers >= 0 && room.hasComputers() != hasComputers)
+                    ||
+                    (hasProjector != null && room.hasProjector() != hasProjector)
+            )
+
+                continue;
+
+            // since we touched down this line of code the room passed the lookup query requirements and is included in lookUpResult
+            lookUpResult.add(room);
+
+        }
+        return lookUpResult;
     }
 
 
