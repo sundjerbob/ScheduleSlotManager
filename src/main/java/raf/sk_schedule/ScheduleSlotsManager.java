@@ -3,7 +3,6 @@ package raf.sk_schedule;
 import raf.sk_schedule.api.Constants.WeekDay;
 import raf.sk_schedule.api.ScheduleManagerAdapter;
 import raf.sk_schedule.exception.ScheduleException;
-
 import raf.sk_schedule.model.location_node.RoomProperties;
 import raf.sk_schedule.model.schedule_mapper.RepetitiveScheduleMapper;
 import raf.sk_schedule.model.schedule_node.ScheduleSlot;
@@ -14,9 +13,9 @@ import raf.sk_schedule.util.filter.SearchCriteria;
 import raf.sk_schedule.util.importer.ScheduleImporter;
 
 import java.io.File;
-import java.text.ParseException;
 import java.util.*;
 
+import static raf.sk_schedule.util.date_formater.DateTimeFormatter.formatDate;
 import static raf.sk_schedule.util.date_formater.DateTimeFormatter.parseDate;
 import static raf.sk_schedule.util.persistence.ScheduleFileOperationUnit.initializeFile;
 import static raf.sk_schedule.util.persistence.ScheduleFileOperationUnit.writeStringToFile;
@@ -26,16 +25,13 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
     private Date startingDate;
     private Date endingDate;
     private List<ScheduleSlot> mySchedule;
-
     private List<RepetitiveScheduleMapper> repetitiveSchedule;
     private Map<String, RoomProperties> rooms;
-
 
     public ScheduleSlotsManager() {
         mySchedule = new ArrayList<>();
         rooms = new HashMap<>();
     }
-
 
     public int loadRoomsSCV(String csvPath) {
         rooms = ScheduleImporter.importRoomsCSV(csvPath);
@@ -54,7 +50,6 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
     public List<RoomProperties> getAllRooms() {
         return new ArrayList<>(rooms.values());
     }
-
 
     public void addRoom(RoomProperties roomProperties) {
 
@@ -85,11 +80,13 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
     }
 
     @Override
-    public void deleteRoom(String s) {
+    public boolean deleteRoom(String roomName) {
 
-        if (!rooms.containsKey(s))
+        if (!rooms.containsKey(roomName))
             throw new ScheduleException("There is no room with that name in schedule.");
-        rooms.remove(s);
+
+        rooms.remove(roomName);
+        return true;
     }
 
     @Override
@@ -99,11 +96,11 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
 
 
     @Override
-    public boolean scheduleTimeSlot(ScheduleSlot timeSlot) throws ParseException, ScheduleException {
+    public boolean scheduleTimeSlot(ScheduleSlot timeSlot) throws ScheduleException {
         //check if there is collision with any of the existing slots
 
         for (ScheduleSlot curr : mySchedule) {
-            if (curr.isCollidingWith(timeSlot) && curr.getLocation().getName().equals(timeSlot.getLocation().getName()))
+            if (curr.isCollidingWith(timeSlot))
                 throw new ScheduleException(
                         "The room: " + curr.getLocation().getName()
                                 + " is already scheduled between " + curr.getStartTime()
@@ -115,7 +112,7 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
     }
 
     @Override
-    public boolean scheduleRepetitiveTimeSlot(String startTime, int duration, String endTime, WeekDay weekDay, int recurrencePeriod, String schedulingIntervalStart, String schedulingIntervalEnd) {
+    public List<ScheduleSlot> scheduleRepetitiveTimeSlot(String startTime, int duration, String endTime, WeekDay weekDay, int recurrencePeriod, String schedulingIntervalStart, String schedulingIntervalEnd) {
         RepetitiveScheduleMapper.Builder mapperBuilder = new RepetitiveScheduleMapper.Builder()
                 .setStartTime(startTime)
                 .setRecurrenceIntervalStart(parseDate(schedulingIntervalStart))
@@ -133,20 +130,58 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
         if (recurrencePeriod > 0)
             mapperBuilder.setRecurrencePeriod(recurrencePeriod);
 
-        return false;
+        List<ScheduleSlot> mappedSlots = mapperBuilder.build().mapSchedule();
+
+        // nullptr safety handle return empty list
+        if (mappedSlots == null)
+            return new ArrayList<>();
+
+        //check for collisions before booking
+        for (ScheduleSlot bookedSlot : mySchedule) {
+            for (ScheduleSlot toBeBookedSlot : mappedSlots) {
+                if (bookedSlot.isCollidingWith(toBeBookedSlot)) {
+                    throw new ScheduleException("The action: scheduleRepetitiveTimeSlot could not be executed because "
+                            + "the collision with an existing slot that occupies the time window on date:" + formatDate(bookedSlot.getDate())
+                            + " between " + bookedSlot.getStartTime() + " and " + bookedSlot.getEndTime() + ".");
+                }
+            }
+        }
+
+
+        mySchedule.addAll(mappedSlots);
+        return mappedSlots;
     }
 
     @Override
-    public boolean scheduleRepetitiveTimeSlot(RepetitiveScheduleMapper repetitiveScheduleMapper) {
+    public List<ScheduleSlot> scheduleRepetitiveTimeSlot(RepetitiveScheduleMapper repetitiveScheduleMapper) {
+        List<ScheduleSlot> mappedSlots = repetitiveScheduleMapper.mapSchedule();
 
-        repetitiveScheduleMapper.mapSchedule();
-        return true;
+        for (ScheduleSlot bookedSlot : mySchedule) {
+            for (ScheduleSlot toBeBookedSlot : mappedSlots) {
+                if (bookedSlot.isCollidingWith(toBeBookedSlot)) {
+                    throw new ScheduleException("The action: scheduleRepetitiveTimeSlot could not be executed because "
+                            + "the collision with an existing slot that occupies the time window on date:" + formatDate(bookedSlot.getDate())
+                            + " between " + bookedSlot.getStartTime() + " and " + bookedSlot.getEndTime() + " . ");
+                }
+            }
+        }
+
+        mySchedule.addAll(mappedSlots);
+        return mappedSlots;
     }
 
 
     @Override
-    public boolean deleteTimeSlot(ScheduleSlot timeSlot) {
-        return false;
+    public List<ScheduleSlot> deleteTimeSlot(ScheduleSlot timeSlot) throws ScheduleException {
+        List<ScheduleSlot> removedSlots = new ArrayList<>();
+        for (ScheduleSlot slot : mySchedule) {
+            if (slot.equals(timeSlot)) {
+                mySchedule.remove(slot);
+                removedSlots.add(slot);
+                return removedSlots;
+            }
+        }
+        throw new ScheduleException("The slot with the specified time/location properties was not found in schedule.");
     }
 
     public void moveTimeSlot(ScheduleSlot oldTimeSlot, ScheduleSlot newTimeSlot) {
@@ -198,6 +233,7 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
 
     @Override
     public List<ScheduleSlot> searchTimeSlots(SearchCriteria criteria) {
+
         List<ScheduleSlot> modelState = new ArrayList<>(mySchedule);
         /*
         I can ignore the return value of filter() method call because the passed modelState list
@@ -232,7 +268,20 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
 
     @Override
     public int exportFilteredScheduleCSV(String filePath, SearchCriteria searchCriteria) {
-        return 1;
+
+        // configure file
+        File file = initializeFile(filePath);
+
+        // extract the data
+        List<ScheduleSlot> searchResult = searchCriteria.filter(new ArrayList<>(mySchedule));
+
+        // serialize data
+        String csv = ScheduleExporterCSV.listToCSV(searchResult);
+
+        // persisting the result (writing to file)
+        writeStringToFile(file, csv, true);
+
+        return searchResult.size();
     }
 
 
@@ -266,7 +315,7 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
         File file = initializeFile(filePath);
 
         // extract the data
-        List<ScheduleSlot> searchResult = searchTimeSlots(searchCriteria);
+        List<ScheduleSlot> searchResult = searchCriteria.filter(new ArrayList<>(mySchedule));
 
         //serialize data
         String serializedList = ScheduleExporterJSON.serializeObject(searchResult);
@@ -274,12 +323,13 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
         //persist serialize data inside the file
         writeStringToFile(file, serializedList, false);
 
-        //return serialized objects count with null ptr exception safety
+        //return serialized objects count with null ptr exception safety check
         return searchResult != null ? searchResult.size() : 0;
     }
 
     @Override
     public List<ScheduleSlot> getSchedule(String lowerBoundDate, String upperBoundDate) {
+        // Using search criteria utility of SchedulingComponentAPI and setting lower and upper date bounds.
         return new SearchCriteria.Builder()
                 .setCriteria(CriteriaFilter.LOWER_BOUND_DATE_KEY, lowerBoundDate)
                 .setCriteria(CriteriaFilter.UPPER_BOUND_DATE_KEY, upperBoundDate)
