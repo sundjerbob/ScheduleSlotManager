@@ -32,6 +32,7 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
     private Map<String, RoomProperties> rooms;
 
     public ScheduleSlotsManager() {
+        super();
         mySchedule = new ArrayList<>();
         rooms = new HashMap<>();
     }
@@ -50,6 +51,7 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
             throw new ScheduleException("Your room properties are currently empty. You need to import them first in order to bind the scheduled slots with their location.");
 
         mySchedule = ScheduleImporter.importScheduleCSV(csvPath, rooms);
+        //mySchedule = new SearchCriteria.Builder().setCriteria(WEEK_DAY_KEY, super.acceptableDays).build().filter(new ArrayList<>(mySchedule));
         return mySchedule.size();
     }
 
@@ -163,11 +165,11 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
 
     // TODO: done
     @Override
-    public boolean bookScheduleSlot(ScheduleSlot timeSlot) throws ScheduleException {
+    public boolean bookScheduleSlot(ScheduleSlot scheduleSlot) throws ScheduleException {
         //check if there is collision with any of the existing slots
 
         for (ScheduleSlot curr : mySchedule) {
-            if (curr.isCollidingWith(timeSlot))
+            if (curr.isCollidingWith(scheduleSlot))
                 throw new ScheduleException(
                         "The room: " + curr.getLocation().getName()
                                 + " is already scheduled between " + curr.getStartTime()
@@ -175,7 +177,10 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
                                 + " on date: " + curr.getDate()
                 );
         }
-        return mySchedule.add(timeSlot);
+        if (!super.acceptableDays.contains(scheduleSlot.getDayOfWeek()))
+            throw new ScheduleException("Schedule slot was not booked because the day " + scheduleSlot.getDayOfWeek() + " has been excluded by schedule configuration!");
+
+        return mySchedule.add(scheduleSlot);
     }
 
     @Override
@@ -211,6 +216,9 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
                             + "the collision with an existing slot that occupies the time window on date:" + formatDate(bookedSlot.getDate())
                             + " between " + bookedSlot.getStartTime() + " and " + bookedSlot.getEndTime() + ".");
                 }
+                if (!super.acceptableDays.contains(toBeBookedSlot.getDayOfWeek()))
+                    throw new ScheduleException("The action: scheduleRepetitiveTimeSlot was not executed because the mapped slot landed on week day that has been excluded by schedule configuration!");
+
             }
         }
         // booking mapped slots
@@ -238,6 +246,27 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
         return mappedSlots;
     }
 
+    @Override
+    public ScheduleSlot getScheduleSlot(Object date, String startTime, String endTime, String location) {
+        if (!rooms.containsKey(location))
+            throw new ScheduleException("There is record of a room with name: " + location);
+        Date date1;
+        if (date instanceof String)
+            date1 = parseDate((String) date);
+        else if (date instanceof Date)
+            date1 = (Date) date;
+        else throw new ScheduleException("Argument date should be a String or java util Date object!");
+
+        for (ScheduleSlot slot : mySchedule) {
+            if (slot.getDate().equals(date1) &&
+                    slot.getStartTime().equals(startTime) &&
+                    slot.getEndTime().equals(endTime) &&
+                    slot.getLocation().getName().equals(location))
+                return slot;
+        }
+        return null;
+    }
+
 
     // TODO: done
     @Override
@@ -256,7 +285,7 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
         throw new ScheduleException("The slot with the specified time/location properties was not found in schedule.");
     }
 
-    public void moveScheduleSlot(ScheduleSlot scheduleSlot, Object newDate, String newStartTime, int newDuration, String newEndTime) {
+    public void moveScheduleSlot(ScheduleSlot scheduleSlot, Object newDate, String newStartTime, String newEndTime, RoomProperties newLocation) {
 
         for (ScheduleSlot curr : mySchedule) {
             if (curr.equals(scheduleSlot)) {
