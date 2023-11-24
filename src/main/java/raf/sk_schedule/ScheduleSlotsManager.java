@@ -19,6 +19,7 @@ import java.util.*;
 
 import static raf.sk_schedule.util.date_formater.DateTimeFormatter.formatDate;
 import static raf.sk_schedule.util.date_formater.DateTimeFormatter.parseDate;
+import static raf.sk_schedule.util.filter.CriteriaFilter.WEEK_DAY_KEY;
 import static raf.sk_schedule.util.persistence.ScheduleFileOperationUnit.initializeFile;
 import static raf.sk_schedule.util.persistence.ScheduleFileOperationUnit.writeStringToFile;
 import static raf.sk_schedule.util.sort.ScheduleSlotComparator.ASCENDING_ORDER;
@@ -37,10 +38,11 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
         rooms = new HashMap<>();
     }
 
-    // TODO: done
+    // TODO: still needs return counter modification
     @Override
     public int loadRoomsSCV(String csvPath) {
-        rooms = ScheduleImporter.importRoomsCSV(csvPath);
+        Map<String, RoomProperties> roomsImport = ScheduleImporter.importRoomsCSV(csvPath);
+        rooms.putAll(roomsImport);
         return rooms.size();
     }
 
@@ -50,9 +52,13 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
         if (rooms.isEmpty())
             throw new ScheduleException("Your room properties are currently empty. You need to import them first in order to bind the scheduled slots with their location.");
 
-        mySchedule = ScheduleImporter.importScheduleCSV(csvPath, rooms);
-        //mySchedule = new SearchCriteria.Builder().setCriteria(WEEK_DAY_KEY, super.acceptableDays).build().filter(new ArrayList<>(mySchedule));
-        return mySchedule.size();
+        List<ScheduleSlot> importedSchedule = ScheduleImporter.importScheduleCSV(csvPath, rooms);
+
+        // if u want to include day filtering
+        importedSchedule = new SearchCriteria.Builder().setCriteria(WEEK_DAY_KEY, super.acceptableDays).build().filter(new ArrayList<>(mySchedule));
+        mySchedule.addAll(importedSchedule);
+
+        return importedSchedule.size();
     }
 
     // TODO: done
@@ -287,11 +293,34 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
 
     public void moveScheduleSlot(ScheduleSlot scheduleSlot, Object newDate, String newStartTime, String newEndTime, RoomProperties newLocation) {
 
+        ScheduleSlot dummy = new ScheduleSlot.Builder()
+                .setDate(newDate instanceof String ? parseDate((String) newDate) : (Date) newDate)
+                .setStartTime(newStartTime)
+                .setEndTime(newEndTime)
+                .setLocation(newLocation)
+                .build();
+
+
+        for (ScheduleSlot curr : mySchedule) {
+            if (dummy.isCollidingWith(curr))
+                throw new ScheduleException(
+                        "The desired changes to schedule slot can not happen because the desired time window is colliding existing slot:\n"
+                                + curr.toString());
+        }
+
         for (ScheduleSlot curr : mySchedule) {
             if (curr.equals(scheduleSlot)) {
-
+                curr.setDate(newDate instanceof Date ? (Date) newDate : parseDate((String) newDate));
+                curr.setLocation(newLocation);
+                curr.setStartTime(newStartTime);
+                curr.setEndTime(newEndTime);
+                return;
             }
         }
+
+
+        throw new ScheduleException("Required slot to change is non existing.");
+
 
     }
 
