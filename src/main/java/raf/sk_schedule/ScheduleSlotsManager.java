@@ -28,9 +28,9 @@ public class ScheduleSlotsManager extends ScheduleManagerAdapter {
 
     private Date startingDate;
     private Date endingDate;
-    private List<ScheduleSlot> mySchedule;
+    private final List<ScheduleSlot> mySchedule;
     private List<RepetitiveScheduleMapper> repetitiveSchedule;
-    private Map<String, RoomProperties> rooms;
+    private final Map<String, RoomProperties> rooms;
 
     public ScheduleSlotsManager() {
         super();
